@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERCOT Operations Intelligence | GridGuard-AI</title>
+    
+    <!-- Google Fonts: Inter & Roboto Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Lucide SVG Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    
+    <!-- Background Blur Effect -->
+    <div class="bg-glow"></div>
+
+    <div class="layout-container">
+        
+        <!-- Header -->
+        <header class="glass-panel main-header">
+            <div class="header-left">
+                <div>
+                    <h1>GRIDGUARD-AI ORCHESTRATION</h1>
+                    <span class="subtitle">Multi-Agent Intelligence System</span>
+                </div>
+            </div>
+            
+            <div class="system-status">
+                <div class="token-tracker">
+                    <i data-lucide="coins" class="icon-orange"></i>
+                    <span>INFERENCE TOKENS: <strong id="token-counter">0</strong></span>
+                </div>
+                <span class="status-dot"></span>
+                <span id="status-text">SYSTEM STANDBY</span>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="dashboard-grid">
+            
+            <!-- Left Panel: Controls & Intelligence Agents -->
+            <aside class="glass-panel sidebar">
+                <h2><i data-lucide="cpu"></i> Active Agents</h2>
+                
+                <ul class="agent-list">
+                    <li id="agent-weather" title="Monitors highly granular Open-Meteo data for Texas to flag risks like frozen wind turbines or extreme heat stress on transformers."><i data-lucide="cloud-lightning"></i> Weather Analyst (CCRO)</li>
+                    <li id="agent-reg" title="Constantly cross-references NERC rules and ERCOT operating protocols to ensure operational actions are legally compliant."><i data-lucide="file-check"></i> Regulatory Knowledge (CCO)</li>
+                    <li id="agent-renew" title="Aggregates and predicts short-term solar and wind availability forecasting to detect reserve margin drops."><i data-lucide="sun"></i> Renewable Forecaster (CRIO)</li>
+                    <li id="agent-market" title="Monitors real-time LMP congestion pricing models and identifies financial anomalies indicating grid strain."><i data-lucide="trending-up"></i> Market Analyst (CMIO)</li>
+                    <li id="agent-monitor" title="Acts as the physical telemetry backbone, comparing real-time GridStatus load vs LSTM base predictions."><i data-lucide="activity"></i> Grid Monitor (CRO)</li>
+                    <li id="agent-operator" title="The aggregator core. It takes intelligence from all 5 Fan-Out agents and executes the final deterministic Fan-In dispatch logic."><i data-lucide="zap"></i> Grid Operator (Dispatcher)</li>
+                </ul>
+
+                <button id="run-btn" class="primary-btn pulse">
+                    <i data-lucide="play-circle"></i> INITIATE FAN-OUT INTELLIGENCE
+                </button>
+
+                <div class="telemetry-box mt-4">
+                    <h3 class="tele-title"><i data-lucide="radio"></i> Live Telemetry Feeds</h3>
+                    <ul class="tele-list">
+                        <li><span id="dot-meteo" class="status-dot"></span> Open-Meteo API (Weather)</li>
+                        <li><span id="dot-ercot" class="status-dot"></span> GridStatus.io (ERCOT Load)</li>
+                        <li><span id="dot-groq" class="status-dot"></span> Llama 3.3 Backbone (Groq)</li>
+                        <li><span id="dot-local" class="status-dot"></span> Local DL Models (Waiting...)</li>
+                    </ul>
+                </div>
+            </aside>
+
+            <!-- Right Panel: Live Terminal View -->
+            <section class="glass-panel terminal-container">
+                <div class="terminal-header">
+                    <span><i data-lucide="terminal"></i> Live Async Execution Feed</span>
+                </div>
+                <div id="terminal-feed" class="terminal-feed">
+                    <div class="log-line">> Awaiting dispatcher authorization to begin...</div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Inject JS logic to handle SSE Streams -->
+    <script>
+        lucide.createIcons();
+
+        const runBtn = document.getElementById('run-btn');
+        const statusDot = document.querySelector('.status-dot');
+        const statusText = document.getElementById('status-text');
+        const tokenCounter = document.getElementById('token-counter');
+        const terminalFeed = document.getElementById('terminal-feed');
+
+        let eventSource = null;
+
+        // Odometer Animation Function
+        function animateValue(obj, start, end, duration) {
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                obj.innerHTML = Math.floor(progress * (end - start) + start).toLocaleString();
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                }
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        runBtn.addEventListener('click', async () => {
+            // UI State Changes
+            runBtn.disabled = true;
+            runBtn.classList.remove('pulse');
+            runBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> ORCHESTRATION IN PROGRESS';
+            lucide.createIcons();
+            
+            // Clear feed
+            terminalFeed.innerHTML = '';
+            
+            statusDot.style.background = '#38bdf8'; // Cyan active
+            statusDot.classList.add('pulse-dot');
+            statusText.innerText = 'EXECUTING LIVE...';
+
+            // Tell Python to run the orchestration kick-off
+            await fetch('/start_execution', { method: 'POST' });
+
+            // Listen to Python's Print Buffer
+            if (eventSource) eventSource.close();
+            
+            eventSource = new EventSource('/stream');
+            
+            eventSource.onmessage = function(event) {
+                if (event.data === '[END_OF_STREAM]') {
+                    eventSource.close();
+                    
+                    // Reset UI
+                    runBtn.disabled = false;
+                    runBtn.innerHTML = '<i data-lucide="check-circle"></i> INTELLIGENCE GATHERING COMPLETE';
+                    lucide.createIcons();
+                    statusDot.style.background = '#4ade80'; // Green complete
+                    statusDot.classList.remove('pulse-dot');
+                    statusText.innerText = 'DISPATCH COMPLETED';
+                    return;
+                }
+
+                if (event.data.startsWith('[METRICS]')) {
+                    const tokens = parseInt(event.data.replace('[METRICS]', ''));
+                    animateValue(tokenCounter, 0, tokens, 2000);
+                    return;
+                }
+
+                // Add log line to target feed
+                const line = document.createElement('div');
+                line.className = 'log-line';
+                
+                let formattedData = event.data;
+                if (formattedData.includes('WARNING') || formattedData.includes('ERROR')) {
+                    line.style.color = '#fbbf24';
+                } else if (formattedData.includes('SUCCESS') || formattedData.includes('OK')) {
+                    line.style.color = '#4ade80';
+                } else if (formattedData.includes('Tool Execution') || formattedData.includes('Crew Execution')) {
+                    line.style.color = '#38bdf8';
+                }
+                
+                line.innerHTML = formattedData;
+                
+                terminalFeed.appendChild(line);
+                terminalFeed.scrollTop = terminalFeed.scrollHeight;
+            };
+        });
+
+        // Live Telemetry Poller
+        async function fetchTelemetry() {
+            try {
+                const response = await fetch('/telemetry_status');
+                const data = await response.json();
+                
+                document.getElementById('dot-meteo').style.background = data.open_meteo === 'green' ? '#4ade80' : '#ef4444';
+                document.getElementById('dot-ercot').style.background = data.gridstatus === 'green' ? '#4ade80' : '#ef4444';
+                document.getElementById('dot-groq').style.background = data.groq === 'green' ? '#4ade80' : '#ef4444';
+                document.getElementById('dot-local').style.background = data.local_ml === 'yellow' ? '#fbbf24' : '#4ade80';
+            } catch (err) {
+                console.error("Telemetry Ping Failed");
+            }
+        }
+        // Ping on load
+        fetchTelemetry();
+        // Ping every 5 seconds
+        setInterval(fetchTelemetry, 5000);
+
+    </script>
+</body>
+</html>

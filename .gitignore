@@ -1,1 +1,34 @@
+# Security and Keys
 .env
+.DS_Store
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environments
+venv/
+env/
+.conda/
+Miniconda3*.sh
+
+# Checkpoints
+.ipynb_checkpoints/
+.vscode/
+
+# SQLite Databases (business-side only; academic data/gridguard.db is committed)
+*.sqlite3
+
+# Final Dispatch JSON test files
+final_dispatch.json
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# ChromaDB lock files
+data/chroma_db/*.lock
+
+# Trained model intermediate files
+*.pkl.tmp
