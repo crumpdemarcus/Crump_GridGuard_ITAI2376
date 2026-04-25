@@ -4,6 +4,8 @@
 ![CrewAI](https://img.shields.io/badge/orchestration-CrewAI%200.100-orange.svg)
 ![TensorFlow](https://img.shields.io/badge/DL-TensorFlow%202.16-ff6f00.svg)
 ![ChromaDB](https://img.shields.io/badge/RAG-ChromaDB-7e57c2.svg)
+![Groq](https://img.shields.io/badge/LLM-Groq%20Llama--3.3--70B-f55036.svg)
+![Docker](https://img.shields.io/badge/deploy-Docker-2496ed.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Course](https://img.shields.io/badge/course-ITAI%202376-lightgrey.svg)
 
