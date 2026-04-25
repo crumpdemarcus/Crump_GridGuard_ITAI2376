@@ -6,7 +6,7 @@
 ![ChromaDB](https://img.shields.io/badge/RAG-ChromaDB-7e57c2.svg)
 ![Groq](https://img.shields.io/badge/LLM-Groq%20Llama--3.3--70B-f55036.svg)
 ![Docker](https://img.shields.io/badge/deploy-Docker-2496ed.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![License](https://img.shields.io/badge/license-All%20Rights%20Reserved-red.svg)
 ![Course](https://img.shields.io/badge/course-ITAI%202376-lightgrey.svg)
 
 > A six-agent multi-agent system that monitors real-time ERCOT telemetry, physical weather risks, trained ML forecasts, and NERC regulatory thresholds to synthesize emergency-dispatch recommendations in seconds.
@@ -195,7 +195,7 @@ The dashboard's `Scenario Mode` dropdown lets you reproduce each of these on dem
 Crump_GridGuard_ITAI2376/
 +-- README.md
 +-- REFLECTION.md
-+-- LICENSE                        # MIT
++-- LICENSE                        # All Rights Reserved
 +-- requirements.txt
 +-- .env.example
 +-- .gitignore
