@@ -29,6 +29,8 @@ from crewai import Agent, Task, Crew
 from crewai import LLM
 from crewai.tools import tool
 
+from src.scenarios import is_replay, scenario_meta, fetch_historical_row
+
 load_dotenv()
 
 # ------------------------------------------------------------
@@ -113,6 +115,26 @@ def fetch_ercot_grid_data(query: str) -> str:
     record in data/gridguard.db; if the DB is also unavailable falls
     back to a randomized simulation so the pipeline still runs."""
 
+    # ---- Scenario Replay Mode ---------------------------------
+    # Pull telemetry from the exact historical hour (e.g. Storm Uri).
+    if is_replay():
+        meta = scenario_meta()
+        row = fetch_historical_row()
+        if row is not None:
+            load = float(row["load_mw"])
+            capacity = float(row.get("estimated_capacity") or load + 5000)
+            reserves_mw = float(row.get("reserve_margin_mw") or capacity - load)
+            return (
+                f"ERCOT GRID TELEMETRY (scenario replay: {meta['label']})\n"
+                f"=========================================================\n"
+                f"Source            : gridguard.db @ {meta['timestamp']}\n"
+                f"Current Load      : {load:,.0f} MW\n"
+                f"Total Capacity    : {capacity:,.0f} MW\n"
+                f"Operating Reserves: {reserves_mw:,.0f} MW\n"
+                f"Reserve Margin    : {reserves_mw / max(load, 1) * 100:.2f}%\n"
+            )
+    # ---- Live mode (default) ----------------------------------
+
     # Tier 1 - live gridstatus API
     try:
         import gridstatus
@@ -158,9 +180,14 @@ def fetch_ercot_grid_data(query: str) -> str:
 # ------------------------------------------------------------
 # Tool 2: predict_expected_load  (real LSTM inference)
 # ------------------------------------------------------------
-def _lstm_predict_from_db(model, scaler, config, current_load: float):
-    """Run the trained LSTM on the last `sequence_length` hours from
-    gridguard.db to produce the expected-next-hour forecast."""
+def _lstm_predict_from_db(model, scaler, config, current_load: float, anchor_ts: str = None):
+    """Run the trained LSTM on the `sequence_length` hours immediately
+    preceding `anchor_ts` (or the most recent data if anchor_ts is None)
+    to produce the expected-next-hour forecast.
+
+    In scenario replay mode `anchor_ts` is the historical event timestamp,
+    so the LSTM forecasts authentically against the lead-up to that event.
+    """
     import numpy as np
     seq_len = int(config["sequence_length"])
     features = config["features"]
@@ -169,11 +196,19 @@ def _lstm_predict_from_db(model, scaler, config, current_load: float):
 
     with sqlite3.connect(_DB_PATH) as conn:
         placeholders = ", ".join(features)
-        rows = conn.execute(
-            f"SELECT {placeholders} FROM ercot_telemetry "
-            f"WHERE load_mw IS NOT NULL "
-            f"ORDER BY timestamp DESC LIMIT {seq_len}"
-        ).fetchall()
+        if anchor_ts:
+            rows = conn.execute(
+                f"SELECT {placeholders} FROM ercot_telemetry "
+                f"WHERE load_mw IS NOT NULL AND timestamp < ? "
+                f"ORDER BY timestamp DESC LIMIT {seq_len}",
+                (anchor_ts,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                f"SELECT {placeholders} FROM ercot_telemetry "
+                f"WHERE load_mw IS NOT NULL "
+                f"ORDER BY timestamp DESC LIMIT {seq_len}"
+            ).fetchall()
     if len(rows) < seq_len:
         raise RuntimeError(f"Need {seq_len} rows, got {len(rows)}")
 
@@ -223,8 +258,11 @@ def predict_expected_load(current_load: str) -> str:
     else:
         model, scaler, config = bundle
         try:
-            predicted = _lstm_predict_from_db(model, scaler, config, current)
+            anchor_ts = scenario_meta()["timestamp"] if is_replay() else None
+            predicted = _lstm_predict_from_db(model, scaler, config, current, anchor_ts=anchor_ts)
             source = f"LSTM ({config['architecture']})"
+            if anchor_ts:
+                source += f" - anchored to {anchor_ts}"
         except Exception as exc:
             print(f"[Grid Monitor] LSTM inference failed ({exc}); using 30-day mean.")
             predicted = current
@@ -242,12 +280,20 @@ def predict_expected_load(current_load: str) -> str:
         try:
             import numpy as np
             rf, feats = rf_bundle
+            anchor_ts = scenario_meta()["timestamp"] if is_replay() else None
             with sqlite3.connect(_DB_PATH) as conn:
                 placeholders = ", ".join(feats)
-                row = conn.execute(
-                    f"SELECT {placeholders} FROM ercot_telemetry "
-                    f"WHERE load_mw IS NOT NULL ORDER BY timestamp DESC LIMIT 1"
-                ).fetchone()
+                if anchor_ts:
+                    row = conn.execute(
+                        f"SELECT {placeholders} FROM ercot_telemetry "
+                        f"WHERE timestamp = ?",
+                        (anchor_ts,),
+                    ).fetchone()
+                else:
+                    row = conn.execute(
+                        f"SELECT {placeholders} FROM ercot_telemetry "
+                        f"WHERE load_mw IS NOT NULL ORDER BY timestamp DESC LIMIT 1"
+                    ).fetchone()
             if row is not None:
                 x = np.asarray(row, dtype="float32").reshape(1, -1)
                 prob = float(rf.predict_proba(x)[0, 1])
@@ -288,6 +334,7 @@ grid_monitor = Agent(
     tools=[fetch_ercot_grid_data, predict_expected_load],
     llm=llm,
     verbose=True,
+    cache=False
 )
 
 # ------------------------------------------------------------

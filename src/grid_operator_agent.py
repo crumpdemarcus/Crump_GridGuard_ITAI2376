@@ -112,7 +112,8 @@ grid_operator = Agent(
     ),
     tools=[save_dispatch_report],
     llm=llm,
-    verbose=True
+    verbose=True,
+    cache=False
 )
 
 # ============================================================

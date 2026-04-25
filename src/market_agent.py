@@ -11,6 +11,8 @@ from crewai import Agent, Task, Crew
 from crewai import LLM
 from crewai.tools import tool
 
+from src.scenarios import is_replay, scenario_meta
+
 load_dotenv()
 
 # ============================================================
@@ -32,13 +34,47 @@ def fetch_realtime_prices(query: str) -> str:
     # ERCOT's 4 major trading hubs
     hubs = ["HB_HOUSTON", "HB_NORTH", "HB_SOUTH", "HB_WEST"]
 
+    # ---- Scenario Replay Mode -----------------------------------------
+    # When a historical scenario is active, replay the canonical hub
+    # prices for that event (e.g. ORDC-cap $9000/MWh during Storm Uri).
+    if is_replay():
+        meta = scenario_meta()
+        scenario_prices = meta.get("prices")
+        if scenario_prices:
+            report_lines = []
+            spike_detected = False
+            highest_price = 0
+            highest_hub = ""
+            for hub in hubs:
+                price = float(scenario_prices.get(hub, 0))
+                if price > highest_price:
+                    highest_price = price
+                    highest_hub = hub
+                if price > 100:
+                    spike_detected = True
+                report_lines.append(f"{hub}: ${price:.2f}/MWh")
+            summary = "\n".join(report_lines)
+            status = "[WARNING] PRICE SPIKE DETECTED" if spike_detected else "[OK] Prices Normal"
+            return (
+                f"ERCOT PRICE REPORT (scenario replay: {meta['label']})\n"
+                f"=========================================================\n"
+                f"Source: documented hub prices from {meta['timestamp']}\n\n"
+                f"{summary}\n\n"
+                f"Highest Price: ${highest_price:.2f}/MWh at {highest_hub}\n"
+                f"Status: {status}\n"
+                f"Note: Prices above $100/MWh signal emerging grid stress."
+            )
+    # ---- Live mode (default) ------------------------------------------
+
     # We'll use the ERCOT public API for real-time prices
     url = "https://api.ercot.com/api/public-reports/np6-905-cd/act_sys_load_by_wzn"
 
     try:
         import gridstatus
         ercot = gridstatus.Ercot()
-        prices = ercot.get_spp(date="latest")
+        # gridstatus >= 0.25 requires the `market` kwarg. REAL_TIME_15_MIN
+        # is the live 15-minute settlement-point-price feed used by ERCOT.
+        prices = ercot.get_spp(date="latest", market="REAL_TIME_15_MIN")
 
         report_lines = []
         spike_detected = False
@@ -46,9 +82,7 @@ def fetch_realtime_prices(query: str) -> str:
         highest_hub = ""
 
         for hub in hubs:
-            hub_data = prices[prices["Location"].str.contains(
-                hub.replace("HB_", ""), case=False, na=False
-            )]
+            hub_data = prices[prices["Location"] == hub]
             if not hub_data.empty:
                 price = float(hub_data["SPP"].iloc[-1])
                 if price > highest_price:
@@ -64,8 +98,8 @@ def fetch_realtime_prices(query: str) -> str:
         status = "[WARNING] PRICE SPIKE DETECTED" if spike_detected else "[OK] Prices Normal"
 
         return (
-            f"ERCOT REAL-TIME PRICE REPORT\n"
-            f"============================\n"
+            f"ERCOT REAL-TIME PRICE REPORT (live gridstatus SPP feed)\n"
+            f"========================================================\n"
             f"{summary}\n\n"
             f"Highest Price: ${highest_price:.2f}/MWh at {highest_hub}\n"
             f"Status: {status}\n"
@@ -73,7 +107,9 @@ def fetch_realtime_prices(query: str) -> str:
         )
 
     except Exception as e:
-        # Fallback: use simulated realistic prices if ERCOT blocks us
+        # Fallback: deterministic illustrative prices if the live SPP feed is
+        # unavailable (e.g. gridstatus version drift, ERCOT 403 from a cloud IP,
+        # or network failure). Honest labeling: this is NOT live data.
         import random
         base_prices = {
             "HB_HOUSTON": round(random.uniform(28, 145), 2),
@@ -99,8 +135,8 @@ def fetch_realtime_prices(query: str) -> str:
         status = "[WARNING] PRICE SPIKE DETECTED" if spike_detected else "[OK] Prices Normal"
 
         return (
-            f"ERCOT REAL-TIME PRICE REPORT (Simulated - ERCOT API blocked)\n"
-            f"===============================================================\n"
+            f"ERCOT PRICE REPORT (illustrative fallback - live SPP feed unavailable: {type(e).__name__})\n"
+            f"================================================================\n"
             f"{summary}\n\n"
             f"Highest Price: ${highest_price:.2f}/MWh at {highest_hub}\n"
             f"Status: {status}\n"
@@ -126,7 +162,8 @@ market_analyst = Agent(
     ),
     tools=[fetch_realtime_prices],
     llm=llm,
-    verbose=True
+    verbose=True,
+    cache=False
 )
 
 # ============================================================

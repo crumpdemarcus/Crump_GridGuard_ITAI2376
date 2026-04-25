@@ -1,0 +1,60 @@
+{
+  "trained_at": "2026-04-24T23:58:56.797235+00:00",
+  "n_features": 39,
+  "n_estimators": 300,
+  "max_depth": 15,
+  "total_rows": 63351,
+  "train_rows": 50680,
+  "test_rows": 12671,
+  "target": "is_stress_event",
+  "class_weight": "balanced",
+  "test_metrics": {
+    "accuracy": 0.9996843185226106,
+    "precision": 0.9711538461538461,
+    "recall": 0.9901960784313726,
+    "f1": 0.9805825242718447,
+    "auc_roc": 0.9999960999595955
+  },
+  "top_features": [
+    {
+      "feature": "temp_max_statewide",
+      "importance": 0.11162477668257802
+    },
+    {
+      "feature": "temp_avg_statewide",
+      "importance": 0.10551619734244858
+    },
+    {
+      "feature": "wind_chill_statewide",
+      "importance": 0.10326845372855926
+    },
+    {
+      "feature": "load_deviation_pct",
+      "importance": 0.07540295224017106
+    },
+    {
+      "feature": "load_deviation_from_hourly_avg",
+      "importance": 0.07283390023320316
+    },
+    {
+      "feature": "temp_min_statewide",
+      "importance": 0.062056276526891
+    },
+    {
+      "feature": "reserve_margin_mw",
+      "importance": 0.061225351184001645
+    },
+    {
+      "feature": "is_extreme_cold",
+      "importance": 0.053841639727905725
+    },
+    {
+      "feature": "load_mw",
+      "importance": 0.039634399291209294
+    },
+    {
+      "feature": "is_extreme_heat",
+      "importance": 0.03776172683090595
+    }
+  ]
+}

@@ -6,7 +6,7 @@
 # --- Multi-Agent Orchestration ---
 crewai==0.100.0
 litellm>=1.0.0
-pydantic==2.5.3
+pydantic>=2.7.0,<3.0.0
 
 # --- Web Dashboard (Flask + SSE) ---
 Flask==3.0.0
@@ -18,6 +18,8 @@ python-dotenv==1.0.1
 
 # --- Deep Learning (LSTM load forecasting) ---
 tensorflow==2.16.1
+# tf-keras provides the Keras 2 API that sentence-transformers / transformers expect
+tf-keras>=2.16.0,<2.17.0
 
 # --- Machine Learning (Random Forest stress classifier) ---
 scikit-learn==1.4.2
@@ -28,8 +30,9 @@ pandas==2.2.2
 numpy==1.26.4
 
 # --- Retrieval-Augmented Generation (ChromaDB + embeddings) ---
-chromadb==0.4.24
-sentence-transformers==2.7.0
+# chromadb >= 0.5.23 required by crewai 0.100.0
+chromadb>=0.5.23,<0.6
+sentence-transformers>=2.7.0
 pypdf==4.2.0
 
 # --- Notebooks (for reproducible training) ---

@@ -1,5 +1,12 @@
 # GridGuard-AI: ERCOT Operations Intelligence
 
+![Python](https://img.shields.io/badge/python-3.12-blue.svg)
+![CrewAI](https://img.shields.io/badge/orchestration-CrewAI%200.100-orange.svg)
+![TensorFlow](https://img.shields.io/badge/DL-TensorFlow%202.16-ff6f00.svg)
+![ChromaDB](https://img.shields.io/badge/RAG-ChromaDB-7e57c2.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Course](https://img.shields.io/badge/course-ITAI%202376-lightgrey.svg)
+
 > A six-agent multi-agent system that monitors real-time ERCOT telemetry, physical weather risks, trained ML forecasts, and NERC regulatory thresholds to synthesize emergency-dispatch recommendations in seconds.
 
 **Course:** ITAI 2376 - Deep Learning in Artificial Intelligence  
@@ -37,7 +44,7 @@ In February 2021, Winter Storm Uri hit Texas and ERCOT's control room could not 
 
 The system uses a **Fan-Out / Fan-In Parallel Orchestration** on the CrewAI framework. Phase 1 (data-gathering agents: Weather, Regulatory, Renewable) and Phase 2 (intelligence agents: Grid Monitor, Market) execute concurrently via `async_execution=True`. Once all five reports are available, CrewAI passes them as `context` to the Phase 3 Grid Operator, which performs final synthesis and emits the JSON dispatch.
 
-![GridGuard Architecture](architecture.png)
+![GridGuard Architecture](docs/architecture.png)
 
 ### Agent roster
 
@@ -56,10 +63,10 @@ The system uses a **Fan-Out / Fan-In Parallel Orchestration** on the CrewAI fram
 
 | Course module | Concept | Where it lives in GridGuard |
 | --- | --- | --- |
-| **Module 04 - RNNs** | LSTM gated memory for temporal forecasting | `notebooks/02_train_lstm.ipynb` trains `models/load_forecaster.h5`; Grid Monitor calls it at runtime |
+| **Module 04 - RNNs** | LSTM gated memory for temporal forecasting | `notebooks/02_train_lstm.ipynb` trains `models/load_forecaster.h5` (test MAE 1,793 MW, RMSE 2,392 MW, MAPE 3.31% on a temporal hold-out); Grid Monitor calls it at runtime |
 | **Module 05 - Transformers** | Self-attention for multi-modal reasoning | Every agent's "brain" is Groq Llama-3.3-70B (transformer LLM) |
 | **Module 05 - Embeddings + RAG** | Sentence-transformer embeddings and vector retrieval | `notebooks/04_build_chromadb.ipynb` builds `data/chroma_db/`; compliance agent semantic-searches it |
-| **Tabular ML / Feature Engineering** | Random Forest ensemble on 39 engineered features | `notebooks/03_train_random_forest.ipynb` trains `models/random_forest.pkl`; Grid Monitor uses it as a second opinion |
+| **Tabular ML / Feature Engineering** | Random Forest ensemble on 39 engineered features | `notebooks/03_train_random_forest.ipynb` trains `models/random_forest.pkl` (F1 = 0.981, recall 99.0%, precision 97.1% on a temporal hold-out test set; class is heavily imbalanced at ~0.9% positive, so F1/recall are the meaningful metrics, not raw accuracy); Grid Monitor uses it as a second opinion |
 
 ---
 
@@ -67,8 +74,8 @@ The system uses a **Fan-Out / Fan-In Parallel Orchestration** on the CrewAI fram
 
 - **LLM provider:** Groq (Llama-3.3-70B-Versatile)
 - **Agent orchestration:** CrewAI 0.100 (Fan-Out / Fan-In via `async_execution`)
-- **Vector store / RAG:** ChromaDB 0.4.24 + `sentence-transformers/all-MiniLM-L6-v2`
-- **Deep learning:** TensorFlow / Keras 2.16 (LSTM)
+- **Vector store / RAG:** ChromaDB 0.5.x + `sentence-transformers/all-MiniLM-L6-v2`
+- **Deep learning:** TensorFlow 2.16 + tf-keras 2.16 (LSTM)
 - **Classical ML:** scikit-learn 1.4 (Random Forest)
 - **Data engineering:** pandas, numpy, sqlite3 over `data/gridguard.db` (63,351 rows, 7+ years of ERCOT telemetry joined with Open-Meteo weather)
 - **Web dashboard:** Flask + Server-Sent Events (live agent-reasoning stream)
@@ -107,25 +114,29 @@ cp .env.example .env
 
 Get a free Groq key at https://console.groq.com (Llama-3.3-70B is free-tier).
 
-### 4. Generate the trained artifacts
+### 4. Build the ChromaDB vector store (one-time, ~30 seconds)
 
-The repo ships with the source data (`data/gridguard.db`, 28 regulatory PDFs in `data/regulatory_docs/`) but **not** the trained models or ChromaDB vector store. You have two options:
+The repo ships with most artifacts pre-trained, but the ChromaDB vector store is **not** committed because it exceeds GitHub's 100 MB file size limit. Build it locally from the 28 committed source PDFs:
 
-**Option A - Google Colab (recommended, no local GPU needed):**
-1. Push this repo to GitHub.
-2. Open each notebook in `notebooks/` via Colab (`File -> Open notebook -> GitHub`).
-3. Set the `REPO_URL` environment variable in the first cell to your GitHub clone URL.
-4. Run notebooks **01 -> 02 -> 03 -> 04** in order.
-5. Each notebook downloads its artifacts back to your machine via `files.download()`.
-6. Drop `load_forecaster.*` and `random_forest.*` into `models/`, unzip `chroma_db.zip` into `data/`, and commit.
-
-**Option B - Local:**
 ```bash
-jupyter lab
-# then run notebooks 01 -> 02 -> 03 -> 04 top-to-bottom
+jupyter nbconvert --to notebook --execute notebooks/04_build_chromadb.ipynb
+# or open in Jupyter / Colab and Run All
 ```
 
-If you skip this step, the agents still run end-to-end but log a warning and fall back to curated keyword heuristics instead of true ML inference.
+This embeds all 28 NERC / ERCOT / FERC / DOE PDFs into 4,071 chunks under `data/chroma_db/` using `sentence-transformers/all-MiniLM-L6-v2`. The build is reproducible and takes about 30 seconds on a CPU.
+
+**What ships ready to run (already committed):**
+- `data/gridguard.db` (41 MB SQLite, 63,351 rows of ERCOT load + Open-Meteo weather, 2019-2026)
+- `data/regulatory_docs/` (28 NERC / ERCOT / FERC / DOE PDFs - input to notebook 04)
+- `models/load_forecaster.h5` + scaler + config (trained LSTM, test MAE 1,793 MW)
+- `models/random_forest.pkl` + config (trained RF stress classifier, F1 = 0.981)
+
+If you also want to **retrain the LSTM and RF from scratch** (optional, to verify reproducibility):
+```bash
+jupyter lab
+# then run notebooks/01 -> 02 -> 03 top-to-bottom
+```
+Notebooks also run cleanly in Google Colab (`File -> Open notebook -> GitHub`) - no local GPU required.
 
 ---
 
@@ -157,6 +168,8 @@ Every run writes the final JSON dispatch to `final_dispatch.json` at repo root.
 
 ## Example Scenarios
 
+The dashboard's `Scenario Mode` dropdown lets you reproduce each of these on demand by replaying the documented historical hour from `gridguard.db` (see Scenario Replay Mode below). The reasoning traces shown here are representative of what each agent emits for the corresponding scenario.
+
 ### Scenario 1 - Extreme heat + reserve tightening
 - **Input:** Open-Meteo reports 106 °F in Dallas. GridStatus reports 81,000 MW load.
 - **Agent reasoning:** Weather flags "Extreme Heat Alert." LSTM forecasts 76,200 MW vs. observed 81,000 MW -> 6.3 % deviation, anomaly fires. RF stress probability 78 %. Compliance retrieves NERC BAL-001 reserve-margin thresholds and ERCOT EEA1 protocol.
@@ -180,14 +193,15 @@ Every run writes the final JSON dispatch to `final_dispatch.json` at repo root.
 Crump_GridGuard_ITAI2376/
 +-- README.md
 +-- REFLECTION.md
++-- LICENSE                        # MIT
 +-- requirements.txt
 +-- .env.example
 +-- .gitignore
-+-- architecture.png
++-- docs/
+|   +-- architecture.png
+|   +-- MD_Blueprint_Crump_DeMarcus_Cook_Yoana_GridGuard_ITAI2376.md
 +-- main.py                        # Flask dashboard + live SSE stream
 +-- Dockerfile
-+-- docs/
-|   +-- MD_Blueprint_Crump_DeMarcus_Cook_Yoana_GridGuard_ITAI2376.md
 +-- src/                           # Agent implementations
 |   +-- orchestrator.py
 |   +-- weather_agent.py
@@ -225,25 +239,74 @@ Crump_GridGuard_ITAI2376/
 
 ---
 
+## Scenario Replay Mode (operator drill mode)
+
+Real ERCOT shift supervisors regularly run **tabletop drills** against historical extreme-weather events to keep their reasoning sharp. GridGuard exposes the same surface in production: a `Scenario Mode` dropdown next to the run button lets the operator replay a real catastrophic hour pulled from the 7-year `gridguard.db` archive.
+
+| Mode | Source | What it injects |
+|---|---|---|
+| **Live ERCOT Feed** (default) | Open-Meteo + gridstatus | Whatever the grid is doing right now |
+| **Texas Heatwave - June 2023** | `gridguard.db` row `2023-06-25 16:00` | West Texas at 110.8 F, statewide load 77,135 MW (record), real heat-dome hub prices |
+| **Winter Storm Uri - February 2021** | `gridguard.db` row `2021-02-16 08:00` | Dallas at -1.9 F, suppressed load 46,797 MW, $9,000/MWh ORDC-cap pricing, frozen wind output |
+
+When a non-Live scenario is selected:
+
+- The Weather agent loads the historical regional temperatures and wind speeds.
+- The Market agent loads documented hub prices from the event.
+- The Renewable Forecaster loads the recorded wind/solar performance for that hour.
+- The Grid Monitor's LSTM forecasts using the **24 hours preceding the historical event** as its input window, so the predicted-vs-actual deviation is an authentic forecast against a real event.
+- The Random Forest stress classifier evaluates the **exact 39-feature row** for that historical event.
+- The Compliance agent's ChromaDB RAG independently retrieves the matching FERC / NERC report (e.g. it surfaces `FERC_NERC_Cold_Weather_2021.pdf` when asked about cold-weather risk during Storm Uri replay) because the LLM's query is conditioned on the agent context.
+
+This is implemented as a single `GRIDGUARD_SCENARIO` env var checked at the top of each tool (see `src/scenarios.py`). Live mode is unchanged: no env var, every tool hits the real APIs.
+
+---
+
 ## Known Limitations
 
 - **Groq free-tier rate limits.** With six agents running concurrently, tokens-per-minute can occasionally trip a 429. Tool outputs are deliberately trimmed to minimize context length.
 - **ERCOT cloud-IP blocking.** ERCOT returns HTTP 403 to most cloud egress IPs. `fetch_realtime_prices` and `fetch_ercot_grid_data` transparently fall back to the most recent `gridguard.db` snapshot, then to a deterministic random simulation.
 - **LSTM training window.** The blueprint-locked LSTM trains on the last 90 days of `gridguard.db`. It is calibrated to 2026 seasonal patterns; forecast quality would degrade on pre-2019 data or on a future regime change.
 - **Regulatory KB is retrieval-only.** The compliance agent surfaces the applicable standard but does not parse numeric thresholds programmatically - the LLM reasons over the retrieved passages.
-- **Demo is offline.** The demo video shows the local Flask dashboard; it does not hit live Groq quotas during playback.
 
 ---
 
-## Demo Video
+## Demo
 
-The 3-5 minute demo video ships inside the repo at:
+A 4-minute recorded walkthrough of the system in action is committed to the repo at:
 
-```
-demo/Crump_GridGuard_ITAI2376_Demo.mp4
-```
+**[`demo/Crump_GridGuard_ITAI2376_Demo.mp4`](demo/Crump_GridGuard_ITAI2376_Demo.mp4)** (41 MB, 1080p)
 
-It walks through three distinct scenarios (extreme heat, isolated price spike, winter freeze) and shows the live SSE stream of every agent's ReAct reasoning loop.
+The recording shows a full end-to-end run on the live Flask dashboard at `http://localhost:5001`: clicking **Initiate Fan-Out Intelligence**, the SSE stream of every agent's ReAct reasoning loop, the Model Stack panel lighting up as each ML/DL component fires (Transformers, ChromaDB RAG, LSTM, Random Forest), and the final Pydantic-validated JSON dispatch.
+
+A complementary 10-screenshot walkthrough with per-image captions lives at [`demo/README.md`](demo/README.md). The screenshots are organized into three scenario trios (Live, Storm Uri, Heatwave) plus an idle dashboard shot. Highlights below.
+
+### Dashboard at idle — scenario picker open
+
+![Dashboard idle](demo/screenshots/00_dashboard_idle_dropdown.png)
+
+### Storm Uri — Weather + Market (scenario replay)
+
+Dallas at -1.9°F, all four ERCOT hubs at the $9000/MWh ORDC scarcity cap. Weather and market tools both pulled from the historical row at `2021-02-16 08:00:00`.
+
+![Storm Uri weather and market](demo/screenshots/04_storm_uri_weather_market.png)
+
+### Storm Uri — LSTM + Random Forest
+
+LSTM line shows `anchored to 2021-02-16 08:00:00`. Predicted 58,233 MW vs actual 46,797 MW (19.64% deviation downward — the fingerprint of forced load-shedding). RF stress 97.9%.
+
+![Storm Uri LSTM and RF](demo/screenshots/05_storm_uri_lstm_rf.png)
+
+### Heatwave — LSTM + Random Forest
+
+Same model, different scenario: anchored to `2023-06-25 16:00:00`, actual 77,135 MW (the ERCOT all-time record). RF stress 99.9%.
+
+![Heatwave LSTM and RF](demo/screenshots/08_heatwave_lstm_rf.png)
+
+### Live — Final Pydantic-validated dispatch JSON
+
+![Final dispatch](demo/screenshots/03_live_dispatch.png)
+
 
 ---
 
@@ -254,5 +317,5 @@ It walks through three distinct scenarios (extreme heat, isolated price spike, w
 - [x] `.gitignore` excludes `.env`, `__pycache__`, `.ipynb_checkpoints`, `.DS_Store`
 - [x] Source data (`gridguard.db`, 28 regulatory PDFs) committed
 - [x] Reproducible training notebooks for every ML artifact
-- [x] Architecture diagram as `architecture.png` at repo root
+- [x] Architecture diagram at `docs/architecture.png`
 - [x] Graceful runtime fallbacks so the agents run even if model artifacts are missing

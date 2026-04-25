@@ -7,7 +7,7 @@
 
 ## What Worked Well
 
-The Fan-Out / Fan-In orchestration on CrewAI delivered exactly what we designed it for. The Weather, Regulatory, and Renewable agents fire in parallel during Phase 1; the Grid Monitor and Market Analyst fire in parallel during Phase 2; only the final Grid Operator blocks on all five context outputs before producing the Pydantic-validated dispatch. That architecture turned a previously 60+ second sequential pipeline into a sub-10-second parallel pipeline without losing any reasoning quality.
+The Fan-Out / Fan-In orchestration on CrewAI delivered exactly what we designed it for. The Weather, Regulatory, and Renewable agents fire in parallel during Phase 1; the Grid Monitor and Market Analyst fire in parallel during Phase 2; only the final Grid Operator blocks on all five context outputs before producing the Pydantic-validated dispatch. That architecture turned a previously sequential pipeline into a parallel one without losing any reasoning quality - in our test runs, end-to-end wall-clock dropped roughly in half because Phase 1 and Phase 2 agents now overlap instead of waiting on each other.
 
 Grounding the agents in **real data** was the second thing that worked. Rather than mocking ERCOT telemetry, we committed a 41 MB `gridguard.db` SQLite file with 63,351 rows of historical ERCOT load joined with Open-Meteo weather (2019-2026) and 28 real NERC/ERCOT/FERC regulatory PDFs. The Grid Monitor's LSTM and Random Forest both train against that real data in reproducible Colab notebooks, and the Regulatory agent retrieves from those real PDFs via ChromaDB semantic search. That grounding is what lets the Pydantic dispatch schema clamp the LLM's output to bounds pulled from actual ERCOT Load Shed Tables rather than arbitrary numbers.
 
@@ -17,7 +17,7 @@ Finally, the SSE-streamed Flask dashboard (`main.py`) ended up being more useful
 
 ## What Did Not Work and How We Handled It
 
-**ERCOT blocking cloud IPs.** The ERCOT public data portal returns HTTP 403 to most cloud egress IPs, which broke every naive `fetch_realtime_prices` call in our first integration tests. We solved it with a three-tier fallback inside the Grid Monitor and Market Analyst tools: try the live `gridstatus` API first; on failure, read the most recent row out of the committed `gridguard.db`; on failure of that, emit a deterministic random simulation so the orchestration never deadlocks.
+**ERCOT blocking cloud IPs.** The ERCOT public data portal returns HTTP 403 to most cloud egress IPs, which broke every naive `fetch_realtime_prices` and `fetch_ercot_grid_data` call in our first integration tests. We solved it with tiered fallbacks: the Grid Monitor's `fetch_ercot_grid_data` tries the live `gridstatus` API first, falls back to the most recent row out of the committed `gridguard.db`, and only on a second failure emits a deterministic random simulation. The Market Analyst's `fetch_realtime_prices` is two-tier (live then simulation) because we never committed historical SPP prices to `gridguard.db` - we deliberately scoped the DB to load + weather to keep its size sane. Either way, the orchestration never deadlocks waiting on ERCOT.
 
 **Python 3.13/3.14 vs. TensorFlow 2.16.** Our initial environment was Python 3.14, which TensorFlow does not yet support. Rather than waiting on upstream, we pinned the documented install path to Python 3.12 and re-architected the training notebooks to run primarily in Colab (free GPU, TF preinstalled, no local Python fight). The notebooks also run locally inside a 3.12 venv if the grader prefers.
 

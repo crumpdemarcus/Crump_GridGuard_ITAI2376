@@ -236,6 +236,7 @@ compliance_officer = Agent(
     tools=[search_compliance_database],
     llm=llm,
     verbose=True,
+    cache=False
 )
 
 # ------------------------------------------------------------

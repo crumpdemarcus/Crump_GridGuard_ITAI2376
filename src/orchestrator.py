@@ -57,7 +57,15 @@ gridguard_crew = Crew(
     # Even though it's set to sequential, the async_execution config
     # hijacks the flow to execute parallel threads until the Operator.
     process=Process.sequential,
-    verbose=True
+    verbose=True,
+    # Disable tool-result caching: scenario replay mode changes what each
+    # tool returns based on the GRIDGUARD_SCENARIO env var. With cache=True
+    # (the CrewAI default) a tool called with identical arguments in a
+    # later run returns the cached result from the previous run, which
+    # silently leaks Live data into Heatwave runs and Heatwave data into
+    # Storm Uri runs. Disabling the cache forces every run to re-execute
+    # tools so they pick up the current scenario.
+    cache=False,
 )
 
 if __name__ == "__main__":

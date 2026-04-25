@@ -1,19 +1,33 @@
-# Use an official Python base image (matching the Conda setup)
+# GridGuard-AI Multi-Agent Orchestrator
+# Builds a self-contained Flask SSE dashboard image. The container ships
+# the trained ML/DL artifacts (models/) and the historical SQLite DB
+# (data/gridguard.db) so it runs offline against scenario replays.
+#
+# Required at runtime:
+#   - GROQ_API_KEY  (Llama-3.3-70B inference; Compliance/Weather/Market/Operator agents)
+# Pass via:
+#   docker run --env-file .env -p 5001:5001 gridguard-ai
+# or:
+#   docker run -e GROQ_API_KEY=... -p 5001:5001 gridguard-ai
+
 FROM python:3.12-slim
 
-WARNING: This container must be run with the .env file containing the Groq API keys.
+# System deps for tensorflow / sentence-transformers wheels
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy dependency list and install them
+# Install Python deps first so this layer caches across code edits
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the core GridGuard multi-agent codebase
+# Copy the rest of the project (.dockerignore-style exclusions live in .gitignore)
 COPY . .
 
-# Expose the port for the Flask Dashboard
+# Flask SSE dashboard
 EXPOSE 5001
 
-# Start the Flask Orchestrator
 CMD ["python", "main.py"]

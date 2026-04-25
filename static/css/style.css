@@ -193,6 +193,32 @@ h1 {
     background: rgba(56, 189, 248, 0.05);
 }
 
+/* Scenario picker (dropdown for replay mode) */
+.scenario-picker {
+    margin: 1rem 0 0.75rem 0;
+    padding: 0.5rem 0.75rem;
+    background: rgba(56, 189, 248, 0.04);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 8px;
+}
+.scenario-select {
+    width: 100%;
+    background: rgba(15, 23, 42, 0.85);
+    color: #e2e8f0;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 6px;
+    padding: 0.45rem 0.6rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+}
+.scenario-select:hover,
+.scenario-select:focus {
+    border-color: var(--accent-cyan);
+    outline: none;
+}
+
 /* Buttons */
 .primary-btn {
     background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));

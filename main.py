@@ -5,7 +5,7 @@ import threading
 import requests
 import time
 from pathlib import Path
-from flask import Flask, render_template, Response, jsonify
+from flask import Flask, render_template, Response, jsonify, request
 
 # Resolve paths relative to this file so the server can be launched from any cwd
 _REPO_ROOT = Path(__file__).resolve().parent
@@ -36,6 +36,15 @@ class StreamToQueue:
 
     def flush(self):
         self.original_stdout.flush()
+
+    def isatty(self):
+        # Rich/CrewAI checks this to enable color codes; we're not a TTY
+        return False
+
+    def __getattr__(self, name):
+        # Forward any other attribute (fileno, closed, encoding, etc.)
+        # to the wrapped stdout so libraries like Rich don't crash.
+        return getattr(self.original_stdout, name)
 
 def run_orchestration():
     """Runs the CrewAI Orchestrator in a background thread."""
@@ -80,15 +89,29 @@ def index():
 
 @app.route('/start_execution', methods=['POST'])
 def start_execution():
-    """API endpoint to click the 'Run Agent' button on the frontend."""
+    """API endpoint to click the 'Run Agent' button on the frontend.
+
+    Optional JSON body: {"scenario": "LIVE" | "HEATWAVE_2023" | "STORM_URI_2021"}.
+    The selected scenario is exported as the GRIDGUARD_SCENARIO env var so
+    every tool checks it (see src/scenarios.py).
+    """
     # Clear the queue
     while not log_queue.empty():
         log_queue.get_nowait()
-        
+
+    # Pick up the scenario selection from the frontend (defaults to LIVE).
+    payload = request.get_json(silent=True) or {}
+    scenario = str(payload.get("scenario", "LIVE")).upper()
+    from src.scenarios import SCENARIOS
+    if scenario not in SCENARIOS:
+        scenario = "LIVE"
+    os.environ["GRIDGUARD_SCENARIO"] = scenario
+    print(f"[Orchestrator] Scenario set to: {scenario}")
+
     thread = threading.Thread(target=run_orchestration)
     thread.daemon = True
     thread.start()
-    return jsonify({"status": "Execution started"})
+    return jsonify({"status": "Execution started", "scenario": scenario})
 
 @app.route('/telemetry_status')
 def telemetry_status():

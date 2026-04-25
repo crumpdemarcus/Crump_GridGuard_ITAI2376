@@ -11,6 +11,8 @@ from crewai import Agent, Task, Crew
 from crewai import LLM
 from crewai.tools import tool
 
+from src.scenarios import is_replay, scenario_meta, fetch_historical_row
+
 load_dotenv()
 
 # ============================================================
@@ -28,6 +30,45 @@ llm = LLM(
 def fetch_texas_weather(query: str) -> str:
     """Fetches real-time weather conditions for 5 major Texas regions
     including temperature and wind speed to assess physical grid risk."""
+
+    # ---- Scenario Replay Mode -----------------------------------------
+    # If a historical scenario is active (e.g. Storm Uri 2021), pull the
+    # exact temperatures and wind speeds from gridguard.db instead of
+    # calling Open-Meteo. The label makes it explicit that these are
+    # historical readings, not live ones.
+    if is_replay():
+        meta = scenario_meta()
+        row = fetch_historical_row()
+        if row is not None:
+            region_map = [
+                ("Houston",     "temp_houston",     "wind_houston"),
+                ("Dallas",      "temp_dallas",      "wind_dallas"),
+                ("Austin",      "temp_austin",      "wind_austin"),
+                ("West Texas",  "temp_west_texas",  "wind_west_texas"),
+                ("South Texas", "temp_south_texas", "wind_south_texas"),
+            ]
+            report_lines = []
+            risk_detected = False
+            for name, tcol, wcol in region_map:
+                t = row[tcol]; w = row[wcol]
+                severity = ""
+                if t is not None and (t < 20 or t > 100):
+                    risk_detected = True
+                    severity = " [HIGH RISK]"
+                report_lines.append(
+                    f"{name}: Temp {t:.1f}F, Wind {w:.1f} mph{severity}"
+                )
+            summary = "\n".join(report_lines)
+            status = "[WARNING] PHYSICAL GRID RISK DETECTED" if risk_detected else "[OK] Weather Normal"
+            return (
+                f"TEXAS WEATHER RISK REPORT (scenario replay: {meta['label']})\n"
+                f"================================================================\n"
+                f"Source: historical row from gridguard.db @ {meta['timestamp']}\n\n"
+                f"{summary}\n\n"
+                f"Status: {status}\n"
+                f"Note: Extreme temperatures (<20F or >100F) signal physical stress on infrastructure."
+            )
+    # ---- Live mode (default) ------------------------------------------
 
     regions = [
         {"name": "Houston",     "lat": 29.76, "lon": -95.37},
@@ -94,7 +135,8 @@ weather_analyst = Agent(
     ),
     tools=[fetch_texas_weather],
     llm=llm,
-    verbose=True
+    verbose=True,
+    cache=False
 )
 
 # ============================================================

@@ -1,0 +1,25 @@
+{
+  "trained_at": "2026-04-24T23:53:26.615243+00:00",
+  "sequence_length": 24,
+  "training_days": 90,
+  "features": [
+    "load_mw",
+    "temp_avg_statewide",
+    "wind_avg_statewide",
+    "humidity_avg_statewide",
+    "hour_sin",
+    "hour_cos",
+    "is_weekend"
+  ],
+  "target": "load_mw",
+  "architecture": "LSTM(64) -> LSTM(32) -> Dense(16) -> Dense(1)",
+  "trainable_params": 31393,
+  "anomaly_threshold_pct": 5.0,
+  "peak_load_mw": 75571.570086,
+  "test_metrics": {
+    "mae_mw": 1793.369933045515,
+    "rmse_mw": 2392.4413439020277,
+    "mape_pct": 3.3074136124568305,
+    "mae_pct_of_peak": 2.373074862682713
+  }
+}

@@ -11,6 +11,8 @@ from crewai import Agent, Task, Crew
 from crewai import LLM
 from crewai.tools import tool
 
+from src.scenarios import is_replay, scenario_meta
+
 # Load your API key from the .env file
 load_dotenv()
 # ============================================================
@@ -39,6 +41,27 @@ def estimate_renewable_output(query: str) -> str:
     # Texas grid capacity (approximate)
     WIND_CAPACITY_MW = 40000   # Texas has ~40,000 MW of wind capacity
     SOLAR_CAPACITY_MW = 8000   # Texas has ~8,000 MW of solar capacity
+
+    # ---- Scenario Replay Mode ---------------------------------
+    if is_replay():
+        meta = scenario_meta()
+        ren = meta.get("renewables") or {}
+        wind_pct = float(ren.get("wind_pct_of_capacity", 0.5))
+        solar_pct = float(ren.get("solar_pct_of_capacity", 0.5))
+        total_wind_mw = WIND_CAPACITY_MW * wind_pct
+        total_solar_mw = SOLAR_CAPACITY_MW * solar_pct
+        total_mw = total_wind_mw + total_solar_mw
+        pct_of_capacity = (total_mw / (WIND_CAPACITY_MW + SOLAR_CAPACITY_MW)) * 100
+        return (
+            f"RENEWABLE OUTPUT REPORT (scenario replay: {meta['label']})\n"
+            f"==========================================================\n"
+            f"Source: documented renewable performance @ {meta['timestamp']}\n\n"
+            f"Total Wind:  {total_wind_mw:.0f} MW ({wind_pct*100:.0f}% of nameplate)\n"
+            f"Total Solar: {total_solar_mw:.0f} MW ({solar_pct*100:.0f}% of nameplate)\n"
+            f"Combined Output: {total_mw:.0f} MW "
+            f"({pct_of_capacity:.1f}% of total capacity)\n"
+        )
+    # ---- Live mode (default) ----------------------------------
 
     total_wind_mw = 0
     total_solar_mw = 0
@@ -109,7 +132,8 @@ renewable_forecaster = Agent(
     ),
     tools=[estimate_renewable_output],
     llm=llm,
-    verbose=True
+    verbose=True,
+    cache=False
 )
 
 # ============================================================

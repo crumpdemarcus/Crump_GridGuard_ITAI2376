@@ -10,6 +10,7 @@ __pycache__/
 
 # Virtual Environments
 venv/
+.venv/
 env/
 .conda/
 Miniconda3*.sh
@@ -18,17 +19,23 @@ Miniconda3*.sh
 .ipynb_checkpoints/
 .vscode/
 
-# SQLite Databases (business-side only; academic data/gridguard.db is committed)
+# SQLite databases — ignore by default but ALLOW the academic data files
+*.db
 *.sqlite3
+!data/gridguard.db
+
+# ChromaDB vector store is rebuilt locally from data/regulatory_docs/
+# via notebooks/04_build_chromadb.ipynb (it exceeds GitHub's 100 MB file limit)
+data/chroma_db/
 
 # Final Dispatch JSON test files
 final_dispatch.json
 
-# Jupyter notebook checkpoints
-.ipynb_checkpoints/
+# Instructor-provided materials (not part of student submission)
+ITAI2376_Project_Specs_Update-*.pdf
+ITAI 2376 Final Project Instructions.txt
 
-# ChromaDB lock files
-data/chroma_db/*.lock
-
-# Trained model intermediate files
-*.pkl.tmp
+# Raw screen recordings (only the compressed final demo lives in demo/)
+/Screen Recording*.mov
+/Screen Recording*.mp4
+/Screenshot*.png
