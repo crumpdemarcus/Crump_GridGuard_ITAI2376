@@ -236,7 +236,7 @@ Crump_GridGuard_ITAI2376/
 |   +-- rf_feature_names.json
 |   +-- rf_config.json
 +-- demo/
-    +-- Crump_GridGuard_ITAI2376_Demo.mp4   # 3-5 min demo video
+    +-- Crump_GridGuard_ITAI2376_Demo.mp4   # full demo video (1080p, H.264)
 ```
 
 ---
@@ -275,7 +275,7 @@ This is implemented as a single `GRIDGUARD_SCENARIO` env var checked at the top 
 
 ## Demo
 
-A 4-minute recorded walkthrough of the system in action is committed to the repo at:
+A recorded walkthrough of the system in action is committed to the repo at:
 
 **[`demo/Crump_GridGuard_ITAI2376_Demo.mp4`](demo/Crump_GridGuard_ITAI2376_Demo.mp4)** (41 MB, 1080p)
 
