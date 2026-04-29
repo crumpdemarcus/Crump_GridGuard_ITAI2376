@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import queue
 import threading
 import requests
@@ -157,28 +158,72 @@ def telemetry_status():
 
     return jsonify(status)
 
+# Regex to strip ANSI escape codes (colors, bold, reset, etc.)
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
+
+# CrewAI boilerplate lines to filter out of the live feed
+_BOILERPLATE_PATTERNS = [
+    "You ONLY have access to the following tools",
+    "should NEVER make up tools",
+    "Tool Name:",
+    "Tool Arguments:",
+    "Tool Description:",
+    "IMPORTANT: Use the following format",
+    "Thought: you should always think about what to do",
+    "Action: the action to take, only one name of",
+    "Action Input: the input to the action",
+    "Observation: the result of the action",
+    "Once all necessary information is gathered",
+    "Thought: I now know the final answer",
+    "Final Answer: the final answer to the original",
+    "just the name, exactly as it",
+    "enclosed in curly braces, using",
+]
+
+def _is_boilerplate(text: str) -> bool:
+    """Return True if the line is CrewAI internal prompt noise."""
+    return any(pat in text for pat in _BOILERPLATE_PATTERNS)
+
 @app.route('/stream')
 def stream():
     """Server-Sent Events (SSE) endpoint to stream logs live to HTML."""
     def generate():
+        skip_block = False
         while True:
             # Wait for text to appear in the queue
             line = log_queue.get()
             if "[END_OF_STREAM]" in line:
                 yield "data: [END_OF_STREAM]\n\n"
                 break
-            
+
+            # Strip ANSI escape codes so the browser gets clean text
+            clean_line = _ANSI_RE.sub('', line)
+
+            # Filter out CrewAI boilerplate blocks
+            if _is_boilerplate(clean_line):
+                skip_block = True
+                continue
+            # End of a boilerplate block (next real content line)
+            if skip_block and clean_line.strip() and not _is_boilerplate(clean_line):
+                # Check if this line is ALSO boilerplate continuation
+                if clean_line.strip().startswith('```') or clean_line.strip() == '':
+                    continue
+                skip_block = False
+
+            if skip_block:
+                continue
+
             # Presentation Pacing Delays:
-            if "Crew Execution Started" in line or "Task Started" in line:
+            if "Crew Execution Started" in clean_line or "Task Started" in clean_line:
                 time.sleep(0.5)
-            elif "Agent: Chief Energy Trading Strategist" in line:
+            elif "Agent: Chief Energy Trading Strategist" in clean_line:
                 log_queue.put("\n-> [SYSTEM] All Fan-Out intelligence collected. Initiating final Fan-In logic...\n")
                 time.sleep(1.0)
-            elif line.strip():
+            elif clean_line.strip():
                 time.sleep(0.02) # Fast typing effect for standard text
             
-            # Format and sanitize output for HTML parsing
-            clean_line = line.replace('\n', '<br>')
+            # Format for HTML
+            clean_line = clean_line.replace('\n', '<br>')
             yield f"data: {clean_line}\n\n"
             
     return Response(generate(), mimetype='text/event-stream')

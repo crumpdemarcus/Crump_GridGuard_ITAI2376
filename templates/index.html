@@ -201,34 +201,67 @@
                 let formattedData = event.data;
 
                 // Light up Model Stack indicators when components load OR fire.
-                // We watch BOTH the one-time "Loaded X" prints AND the per-call
-                // tool-output banners, because cached models don't re-print "Loaded X"
-                // on subsequent runs in the same Python session.
                 if (formattedData.includes('Loaded ChromaDB RAG')
-                    || formattedData.includes('REGULATORY RAG RETRIEVAL')) lightDL('dl-rag');
+                    || formattedData.includes('REGULATORY RAG RETRIEVAL')
+                    || formattedData.includes('REGULATORY COMPLIANCE SEARCH')) lightDL('dl-rag');
                 if (formattedData.includes('Loaded LSTM')
                     || formattedData.includes('LSTM LOAD FORECAST')) lightDL('dl-lstm');
                 if (formattedData.includes('Loaded Random Forest')
                     || formattedData.includes('RF Stress Probability')) lightDL('dl-rf');
 
-                // Highlight DL/RAG/Model lines so the grader can see them instantly
-                const isDLHighlight = formattedData.includes('Loaded ChromaDB RAG')
-                    || formattedData.includes('Loaded LSTM')
+                // ── Semantic Color-Coding ──
+                // Agent headers (cyan)
+                if (formattedData.includes('# Agent:') || formattedData.includes('[SYSTEM')) {
+                    line.style.color = '#38bdf8';
+                    line.style.fontWeight = '700';
+                // Task descriptions (light blue)
+                } else if (formattedData.includes('## Task:')) {
+                    line.style.color = '#7dd3fc';
+                // Agent thinking (dim gray-blue)
+                } else if (formattedData.includes('## Thought:') || formattedData.startsWith('Thought:')) {
+                    line.style.color = '#94a3b8';
+                    line.style.fontStyle = 'italic';
+                // Tool calls (purple)
+                } else if (formattedData.includes('## Using tool:') || formattedData.includes('## Tool Input:')) {
+                    line.style.color = '#a78bfa';
+                // DL/ML model highlights (glowing amber)
+                } else if (formattedData.includes('Loaded LSTM')
                     || formattedData.includes('Loaded Random Forest')
-                    || formattedData.includes('RF Stress Probability')
+                    || formattedData.includes('Loaded ChromaDB RAG')
                     || formattedData.includes('LSTM LOAD FORECAST')
-                    || formattedData.includes('REGULATORY RAG RETRIEVAL');
-
-                if (isDLHighlight) {
-                    line.style.color = '#fbbf24';   // amber
+                    || formattedData.includes('RF Stress Probability')
+                    || formattedData.includes('REGULATORY RAG RETRIEVAL')
+                    || formattedData.includes('REGULATORY COMPLIANCE SEARCH')) {
+                    line.style.color = '#fbbf24';
                     line.style.fontWeight = '700';
                     line.style.textShadow = '0 0 6px rgba(251, 191, 36, 0.45)';
-                } else if (formattedData.includes('WARNING') || formattedData.includes('ERROR')) {
-                    line.style.color = '#fbbf24';
-                } else if (formattedData.includes('SUCCESS') || formattedData.includes('OK')) {
+                // Tool outputs — the actual data (bright green)
+                } else if (formattedData.includes('## Tool Output:')
+                    || formattedData.includes('WEATHER RISK REPORT')
+                    || formattedData.includes('PRICE REPORT')
+                    || formattedData.includes('GRID TELEMETRY')
+                    || formattedData.includes('RENEWABLE OUTPUT REPORT')
+                    || formattedData.includes('DISPATCH REPORT')) {
                     line.style.color = '#4ade80';
-                } else if (formattedData.includes('Tool Execution') || formattedData.includes('Crew Execution')) {
+                    line.style.fontWeight = '600';
+                // Final answers (bright green)
+                } else if (formattedData.includes('## Final Answer:') || formattedData.includes('FINAL DISPATCH')) {
+                    line.style.color = '#4ade80';
+                    line.style.fontWeight = '700';
+                // Warnings (amber)
+                } else if (formattedData.includes('WARNING') || formattedData.includes('HIGH RISK') || formattedData.includes('ANOMALY')) {
+                    line.style.color = '#fbbf24';
+                // Errors (red)
+                } else if (formattedData.includes('ERROR') || formattedData.includes('CRITICAL')) {
+                    line.style.color = '#f87171';
+                    line.style.fontWeight = '600';
+                // Success (green)
+                } else if (formattedData.includes('SUCCESS') || formattedData.includes('[OK]')) {
+                    line.style.color = '#4ade80';
+                // Execution milestones (cyan)
+                } else if (formattedData.includes('EXECUTION COMPLETE') || formattedData.includes('Crew Execution')) {
                     line.style.color = '#38bdf8';
+                    line.style.fontWeight = '700';
                 }
                 
                 line.innerHTML = formattedData;
